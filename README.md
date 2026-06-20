@@ -1,78 +1,80 @@
 # warp-sim
 
-GPU-accelerated fluid simulation for Blender and Falcor, powered by [NVIDIA Warp](https://github.com/NVIDIA/warp).
+GPU-accelerated fluid simulation pipeline for cinematic VFX, powered by [NVIDIA Warp](https://github.com/NVIDIA/warp).
 
 ## Overview
 
-A high-performance SPH/PBF fluid simulation pipeline designed for cinematic VFX:
-
 ```
-Blender (scene setup) → Warp (GPU simulation) → Falcor (path-traced render)
+Warp (GPU simulation) → .npy cache → Falcor (path-traced render)
 ```
 
 - **Solver**: Position-Based Fluids (PBF) — stable at 5–8 substeps vs. 40+ for WCSPH
 - **Scale**: 2M–10M particles on RTX 3080 (10 GB VRAM)
-- **Output**: Baked `.npz` / `.usdc` cache → Marching Cubes surface → Falcor
+- **Output**: Baked `.npy` frame cache → surface reconstruction → Falcor
 - **Rendering**: Spectral photon mapping (SPPM), IOR 1.33, Beer–Lambert, chromatic caustics
+
+No Blender dependency at simulation time. Blender (or any DCC) can import the baked cache for scene composition.
 
 ## Requirements
 
 - NVIDIA GPU (RTX series recommended)
-- [NVIDIA Warp](https://github.com/NVIDIA/warp) (`pip install warp-lang`)
-- Blender 4.x / 5.x (for the addon)
-- [Falcor](https://github.com/NVIDIAGameWorks/Falcor) (for final rendering)
+- [NVIDIA Warp](https://github.com/NVIDIA/warp): `pip install warp-lang`
+
+```bash
+pip install warp-lang numpy
+```
 
 ## Project Structure
 
 ```
-sim/          # Core solver — no Blender dependency
-  solver_pbf.py     # PBF density-constraint solver
-  solver_sph.py     # Legacy WCSPH (for comparison)
-  cuda_graph.py     # CUDA Graph wrapper (substep capture)
-  bake.py           # Bake to .npz / .usdc
-  scene.py          # Domain, colliders, emitters
+sim/
+  solver_pbf.py   # PBF solver — density constraint + CUDA Graph
+  solver_sph.py   # Legacy WCSPH (benchmark comparison)
+  bake.py         # Frame loop → .npy cache
+  scene.py        # SimConfig, Domain, Collider, Emitter
 
-blender/      # Thin Blender addon (I/O only)
-  __init__.py
-  ops.py            # Bake operator, scene export
-  props.py          # UI parameters
-  import_cache.py   # Load .npz → point cloud → GN surface
-
-falcor/       # Falcor render bridge
-  surface.py        # .npz frames → VDB / mesh
-  fluid_pass.py     # Custom render pass
-  material.py       # Water material (IOR, SPPM caustics)
+falcor/           # Falcor render bridge (Phase 3)
+  surface.py      # .npy frames → mesh / VDB
+  fluid_pass.py   # Custom render pass
+  material.py     # Water IOR, SPPM caustics
 
 examples/
-  dam_break.py
-  waterfall.py
-  river.py
+  dam_break.py    # 2M particle dam break
+  waterfall.py    # Open boundary emitter
 ```
+
+## Quickstart
+
+```bash
+pip install warp-lang numpy
+python examples/dam_break.py --particles 2000000 --frames 240
+```
+
+Output: `cache/dam_break/frame_0000.npy` … (N_live × 3 float32)
 
 ## Roadmap
 
-See [docs/PLAN.md](docs/PLAN.md) for the full phased plan.
+### Phase 1 — PBF Core + CUDA Graph ✅
+- PBF solver (Macklin & Müller 2013) — 8× fewer substeps than WCSPH
+- CUDA Graph capture: full substep loop replayed in 1 GPU call/frame
+- Standalone bake to `.npy` — no Blender at sim time
+- Legacy WCSPH kept in `solver_sph.py` for benchmarking
 
-### Phase 1 — PBF Core + CUDA Graph
-- Replace WCSPH with PBF solver (8× fewer substeps)
-- Capture substep loop with CUDA Graph (1 Python call per frame)
-- Standalone bake to `.npz` (no Blender at sim time)
-- **Target**: 2M particles @ 25–40 FPS on RTX 3080
+### Phase 2 — Falcor Bridge
+- Surface reconstruction: `.npy` → Marching Cubes → `.usdc`
+- USD time-sampled water mesh loaded into Falcor
+- PBR water material: IOR 1.33, transmission, Beer–Lambert tint
 
-### Phase 2 — Blender Addon
-- Scene/collider export (JSON/USD)
-- Bake trigger from Blender UI
-- Cache import → Geometry Nodes surface
-
-### Phase 3 — Falcor Bridge
-- Surface reconstruction (Marching Cubes / NanoVDB)
-- USD time-sampled water mesh → Falcor
-- SPPM caustics, chromatic dispersion (Cauchy n=A+B/λ²)
+### Phase 3 — Caustics
+- Spectral photon mapping (SPPM)
+- Chromatic dispersion: Cauchy n = A + B/λ²
+- 3-knob control: Dispersion Gain / Saturation / Mask
+- AOV split: base + caustics → composite
 
 ### Phase 4 — Scale + FX
-- 5M–10M particle support
-- Open boundary (river, waterfall)
+- 5M–10M particle support (VRAM pool optimization)
 - Foam / spray / bubbles
+- NanoVDB surface reconstruction
 
 ## License
 

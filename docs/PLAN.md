@@ -70,26 +70,7 @@ wp.capture_launch(self.graph)
 
 ---
 
-## Phase 2 — Blender Addon
-
-**Goal**: Blender handles only scene I/O, never touches the solver
-
-- `blender/ops.py`
-  - `WS_OT_export_scene`: colliders + domain → `scene.json`
-  - `WS_OT_bake`: launch `sim/bake.py` as subprocess
-  - `WS_OT_import_cache`: load `.npz` → mesh vertices → GN surface
-- `blender/props.py`: mirror of `sim/scene.py` fields as Blender properties
-- `blender/import_cache.py`: `foreach_set` path, GN (Points to Volume → Volume to Mesh)
-
-Migration from `~/warp-blender/warp_water_fluid.py`:
-- Keep: kernel bounds/collide/emit/kill logic (port to PBF file)
-- Keep: `_write_particles` → move to `import_cache.py`
-- Drop: `frame_change` handler driving sim from Blender
-- Drop: WCSPH density/accel kernels (moved to `solver_sph.py`)
-
----
-
-## Phase 3 — Falcor Bridge
+## Phase 2 — Falcor Bridge
 
 **Goal**: Baked water surface renders with refractive caustics in Falcor
 
@@ -109,7 +90,7 @@ Reference: `~/warp-blender/docs/HANDOFF.md` (full optical design notes)
 
 ---
 
-## Phase 4 — Scale + FX
+## Phase 3 — Scale + FX
 
 - **5M–10M particles**: VRAM pool sizing, dead-particle compaction
 - **Open boundary**: ring-buffer emitter improvements for river/waterfall
