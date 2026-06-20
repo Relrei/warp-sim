@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.env
+
+# Bake cache
+cache/
+*.npz
+*.npy
+*.usdc
+*.usda
+*.vdb
+
+# Blender
+*.blend1
+
+# IDE
+.vscode/
+.idea/
+
+# Warp kernel cache
+warp_cache/
